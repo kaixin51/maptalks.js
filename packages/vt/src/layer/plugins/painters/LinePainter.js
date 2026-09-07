@@ -46,14 +46,16 @@ function prepareFeatureDepthBias(geometry) {
     }
     const count = {};
     const ord = {};
+    const pickToId = {};
     let hasMultiSymbol = false;
     for (const key in features) {
         const feaObj = features[key];
         const feature = feaObj && (feaObj.feature || feaObj);
-        if (!feature || feature.id === undefined) {
+        if (!feature || feature.id === undefined || feature.id === null || feature.id === false) {
             continue;
         }
         const id = feature.id;
+        pickToId[key] = id;
         const c = count[id] || 0;
         count[id] = c + 1;
         ord[key] = c;
@@ -71,7 +73,10 @@ function prepareFeatureDepthBias(geometry) {
     for (let i = 1; i <= len; i++) {
         if (i === len || aPickingId[i] !== current) {
             // 同一 feature 的所有顶点连续（aPickingId 相同），按 feature 填统一的偏置
-            const total = count[current];
+            // 注意 aPickingId 中存放的是 pickingId（KEY_IDX），而 count 按 feature.id 分组，
+            // 必须通过 pickToId 先换算成 feature.id 再查该几何的 symbol 总数，否则不同命名空间
+            // 的下标偶合会漏掉部分线的多 symbol 判定（表现为多条线时"最后一条"仍 z-fighting）。
+            const total = count[pickToId[current]];
             if (total > 1) {
                 // 只有同一线的多 symbol 之间才需要区分深度：最上层 symbol 偏置为 0，下层 symbol 依次向后推
                 const bias = (ord[current] - (total - 1)) * LINE_SYMBOL_DEPTH_BIAS;
